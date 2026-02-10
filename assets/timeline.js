@@ -43,51 +43,52 @@ function initSpline(container){
 
     if(!iframe) return;
 
-    // Allow re-initialization: destroy previous instance if exists
+    // destroy previous instance if present
     if(container._splineInstance && typeof container._splineInstance.destroy === 'function'){
         container._splineInstance.destroy();
     }
 
-    const rawFrames = JSON.parse(container.dataset.timeline || "[]");
+    // raw frames from data attribute (already sanitized in PHP when possible)
+    const raw = JSON.parse(container.dataset.timeline || "[]");
 
     const docHeight = ()=>Math.max(document.body.scrollHeight, document.documentElement.scrollHeight) - window.innerHeight;
 
-    // Parse frames to include pixel scroll positions (support percents)
-    const parseFrames = ()=>{
+    // convert scroll_pos to pixel values based on document height
+    const computeFrames = ()=>{
         const dh = docHeight();
-        return (Array.isArray(rawFrames) ? rawFrames : []).map(f=>{
-            const spRaw = parseFloat(f.scroll_pos || 0) || 0;
-            let spPx = spRaw;
-            if(spRaw >= 0 && spRaw <= 1){
-                // fraction (0..1)
-                spPx = Math.round(spRaw * dh);
-            } else if(spRaw > 1 && spRaw <= 100){
-                // likely percent (0..100)
-                spPx = Math.round((spRaw / 100) * dh);
+        return (Array.isArray(raw) ? raw : []).map(f=>{
+            const fp = (f && (f.scroll_pos !== undefined)) ? parseFloat(f.scroll_pos) : 0;
+            let sp = fp;
+            if(fp >= 0 && fp <= 1){
+                sp = Math.round(fp * dh);
+            } else if(fp > 1 && fp <= 100){
+                sp = Math.round((fp / 100) * dh);
             } else {
-                // treat as pixel value
-                spPx = Math.round(spRaw);
+                sp = Math.round(fp);
             }
-            return Object.assign({}, f, { scroll_pos: spPx });
+            return {
+                scroll_pos: sp,
+                scale: val(f.scale, 1),
+                x: val(f.x, 0),
+                y: val(f.y, 0),
+                rotation: val(f.rotation, 0)
+            };
         });
     };
 
-    let frames = parseFrames();
+    let frames = computeFrames();
 
     let lastScroll = window.scrollY;
     let ticking = false;
 
     function applyState(state){
         if(!state) return;
-        const x = isNaN(state.x) ? 0 : state.x;
-        const y = isNaN(state.y) ? 0 : state.y;
-        const scale = isNaN(state.scale) ? 1 : state.scale;
-        const rotation = isNaN(state.rotation) ? 0 : state.rotation;
+        const x = isFinite(state.x) ? state.x : 0;
+        const y = isFinite(state.y) ? state.y : 0;
+        const scale = isFinite(state.scale) ? state.scale : 1;
+        const rotation = isFinite(state.rotation) ? state.rotation : 0;
 
-        iframe.style.transform =
-            'translate(' + x + 'px, ' + y + 'px) '
-            + 'scale(' + scale + ') '
-            + 'rotateY(' + rotation + 'deg)';
+        iframe.style.transform = 'translate(' + x + 'px, ' + y + 'px) scale(' + scale + ') rotateY(' + rotation + 'deg)';
     }
 
     function update(){
@@ -103,15 +104,7 @@ function initSpline(container){
         }
 
         const state = getFrame(frames, scrollY);
-        // Ensure numeric state
-        const safeState = {
-            scale: val(state.scale, 1),
-            x: val(state.x, 0),
-            y: val(state.y, 0),
-            rotation: val(state.rotation, 0)
-        };
-
-        applyState(safeState);
+        applyState(state);
     }
 
     function onScroll(){
@@ -122,30 +115,28 @@ function initSpline(container){
         }
     }
 
-    let resizeTimeout = null;
+    let resizeTimer = null;
     function onResize(){
-        // Debounce resize and recompute frame pixel positions
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(()=>{
-            frames = parseFrames();
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(()=>{
+            frames = computeFrames();
             update();
-        }, 100);
+        }, 120);
     }
 
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onResize);
 
-    // expose destroy so re-init is safe
     container._splineInstance = {
         destroy(){
             window.removeEventListener('scroll', onScroll, { passive: true });
             window.removeEventListener('resize', onResize);
-            clearTimeout(resizeTimeout);
+            clearTimeout(resizeTimer);
             container._splineInstance = null;
         }
     };
 
-    // Initial update
+    // initial
     lastScroll = window.scrollY;
     update();
 }

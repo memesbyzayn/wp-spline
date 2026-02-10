@@ -82,6 +82,7 @@ $repeater->add_control('rotation', [
             'type' => \Elementor\Controls_Manager::REPEATER,
             'fields' => $repeater->get_controls(),
             'default' => [],
+            'title_field' => '{{{ scroll_pos }}}',
         ]);
 
         $this->end_controls_section();
@@ -94,7 +95,25 @@ $repeater->add_control('rotation', [
         wp_enqueue_script('wp-spline-timeline');
         wp_enqueue_style('wp-spline-style');
 
-        $timeline = wp_json_encode($settings['timeline'] ?? []);
+        // Sanitize timeline frames: normalize slider objects and numeric values
+        $raw_timeline = $settings['timeline'] ?? [];
+        $clean = [];
+        if (is_array($raw_timeline)) {
+            foreach ($raw_timeline as $f) {
+                $frame = [];
+                $frame['scroll_pos'] = isset($f['scroll_pos']) ? floatval($f['scroll_pos']) : 0;
+
+                // Slider controls in Elementor return arrays like ['size' => x]
+                $frame['scale'] = isset($f['scale']['size']) ? floatval($f['scale']['size']) : (isset($f['scale']) ? floatval($f['scale']) : 1);
+                $frame['x'] = isset($f['x']['size']) ? floatval($f['x']['size']) : (isset($f['x']) ? floatval($f['x']) : 0);
+                $frame['y'] = isset($f['y']['size']) ? floatval($f['y']['size']) : (isset($f['y']) ? floatval($f['y']) : 0);
+                $frame['rotation'] = isset($f['rotation']['size']) ? floatval($f['rotation']['size']) : (isset($f['rotation']) ? floatval($f['rotation']) : 0);
+
+                $clean[] = $frame;
+            }
+        }
+
+        $timeline = wp_json_encode($clean);
 ?>
 <div class="wp-spline-container"
      data-timeline='<?php echo esc_attr($timeline); ?>'>
