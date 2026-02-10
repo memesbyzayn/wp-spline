@@ -1,23 +1,12 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-class AKDEV_Spline_Elementor_Widget extends \Elementor\Widget_Base {
+class ZA_Spline_Elementor_Widget extends \Elementor\Widget_Base {
 
-    public function get_name() {
-        return 'akdev_spline_timeline';
-    }
-
-    public function get_title() {
-        return 'AKDev Spline Timeline';
-    }
-
-    public function get_icon() {
-        return 'eicon-animation';
-    }
-
-    public function get_categories() {
-        return ['general'];
-    }
+    public function get_name() { return 'wp_spline_animator'; }
+    public function get_title() { return 'Spline Animator'; }
+    public function get_icon() { return 'eicon-animation'; }
+    public function get_categories() { return ['general']; }
 
     protected function register_controls() {
 
@@ -39,34 +28,60 @@ class AKDEV_Spline_Elementor_Widget extends \Elementor\Widget_Base {
         ]);
 
         $repeater->add_control('scale', [
-            'label' => 'Scale',
-            'type' => \Elementor\Controls_Manager::NUMBER,
-            'default' => 1,
-        ]);
+    'label' => 'Scale',
+    'type' => \Elementor\Controls_Manager::SLIDER,
+    'range' => [
+        'px' => [
+            'min' => 0.1,
+            'max' => 5,
+            'step' => 0.1,
+        ],
+    ],
+    'default' => [
+        'size' => 1,
+    ],
+]);
 
-        $repeater->add_control('x', [
-            'label' => 'X Position',
-            'type' => \Elementor\Controls_Manager::NUMBER,
-            'default' => 0,
-        ]);
 
-        $repeater->add_control('y', [
-            'label' => 'Y Position',
-            'type' => \Elementor\Controls_Manager::NUMBER,
-            'default' => 0,
-        ]);
+      $repeater->add_control('x', [
+    'label' => 'X Position',
+    'type' => \Elementor\Controls_Manager::SLIDER,
+    'range' => [
+        'px' => [
+            'min' => -2000,
+            'max' => 2000,
+        ],
+    ],
+]);
 
-        $repeater->add_control('rotation', [
-            'label' => 'Rotation Y',
-            'type' => \Elementor\Controls_Manager::NUMBER,
-            'default' => 0,
-        ]);
+
+      $repeater->add_control('y', [
+    'label' => 'Y Position',
+    'type' => \Elementor\Controls_Manager::SLIDER,
+    'range' => [
+        'px' => [
+            'min' => -2000,
+            'max' => 2000,
+        ],
+    ],
+]);
+
+$repeater->add_control('rotation', [
+    'label' => 'Rotation',
+    'type' => \Elementor\Controls_Manager::SLIDER,
+    'range' => [
+        'deg' => [
+            'min' => -360,
+            'max' => 360,
+        ],
+    ],
+]);
 
         $this->add_control('timeline', [
-            'label' => 'Scroll Timeline',
+            'label' => 'Timeline Frames',
             'type' => \Elementor\Controls_Manager::REPEATER,
             'fields' => $repeater->get_controls(),
-            'title_field' => 'Scroll {{scroll_pos}}',
+            'default' => [],
         ]);
 
         $this->end_controls_section();
@@ -76,24 +91,23 @@ class AKDEV_Spline_Elementor_Widget extends \Elementor\Widget_Base {
 
         $settings = $this->get_settings_for_display();
 
-        wp_enqueue_script('akdev-spline-timeline');
-        wp_enqueue_style('akdev-spline-style');
+        wp_enqueue_script('wp-spline-timeline');
+        wp_enqueue_style('wp-spline-style');
 
-        $timeline = json_encode($settings['timeline'] ?? []);
+        $timeline = wp_json_encode($settings['timeline'] ?? []);
 ?>
-        <div class="akdev-spline-container"
-             data-timeline='<?php echo $timeline; ?>'>
+<div class="wp-spline-container"
+     data-timeline='<?php echo esc_attr($timeline); ?>'>
 
-            <iframe class="akdev-spline-frame"
-                src="<?php echo esc_url($settings['spline_url']); ?>"
-                width="100%"
-                height="600"
-                frameborder="0">
-            </iframe>
+    <iframe class="wp-spline-frame"
+        src="<?php echo esc_url($settings['spline_url']); ?>"
+        width="100%"
+        height="600"
+        frameborder="0"></iframe>
 
-            <div class="akdev-scroll-indicator">Scroll: 0%</div>
+    <div class="wp-scroll-indicator">Scroll: 0%</div>
 
-        </div>
+</div>
 <?php
     }
 }
