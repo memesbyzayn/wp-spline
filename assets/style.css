@@ -7,7 +7,7 @@
 .wp-spline-frame{
     position:fixed;
     top:0;
-    right:0;
+    left:0;
     width:100vw;
     height:100vh;
     border:none;
@@ -15,6 +15,7 @@
     transform-origin:center center;
     transition:transform .12s linear;
     pointer-events:none;
+    will-change: transform;
 }
 
 /* Scroll indicator */
