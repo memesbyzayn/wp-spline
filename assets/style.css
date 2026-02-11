@@ -11,11 +11,22 @@
     width:100vw;
     height:100vh;
     border:none;
-    z-index:-1;
+    z-index:0;
     transform-origin:center center;
     transition:transform .12s linear;
     pointer-events:none;
     will-change: transform;
+}
+
+/* support canvas renderer */
+.wp-spline-canvas{
+    position:fixed;
+    top:0;
+    left:0;
+    width:100vw;
+    height:100vh;
+    z-index:0;
+    pointer-events:none;
 }
 
 /* Scroll indicator */

@@ -40,10 +40,11 @@ function getFrame(frames, scroll){
 
 function initSpline(container){
 
+    const canvas = container.querySelector('canvas.wp-spline-canvas');
     const iframe = container.querySelector('iframe');
     const indicator = container.querySelector('.wp-scroll-indicator');
 
-    if(!iframe) return;
+    if(!canvas && !iframe) return;
 
     // destroy previous instance if present
     if(container._splineInstance && typeof container._splineInstance.destroy === 'function'){
@@ -55,11 +56,50 @@ function initSpline(container){
 
     // Lazy-load support: data-src on container
     const dataSrc = container.dataset.src || '';
+    // detect spline runtime usage (prod.spline.design or .splinecode)
+    const isSplineRuntime = (typeof dataSrc === 'string') && (dataSrc.indexOf('spline.design') !== -1 || dataSrc.indexOf('.splinecode') !== -1);
     let observer = null;
 
     function loadIframe(){
-        if(dataSrc && iframe.getAttribute('src') !== dataSrc){
+        if(dataSrc && iframe && iframe.getAttribute('src') !== dataSrc){
             iframe.setAttribute('src', dataSrc);
+        }
+        if(observer){
+            observer.disconnect();
+            observer = null;
+        }
+    }
+
+    // Spline runtime loader: dynamically import the runtime and init scene on the canvas
+    let splineApp = null;
+    let splineObj = null;
+    let splineLoaded = false;
+    async function loadSpline(){
+        if(!isSplineRuntime || !canvas || splineLoaded) return;
+        try{
+            console.log('[wp-spline] loading runtime from', dataSrc);
+            const mod = await import('https://unpkg.com/@splinetool/runtime/build/runtime.js');
+            const Application = mod.Application || (mod.default && (mod.default.Application || mod.default));
+            if(!Application){
+                throw new Error('Spline Application export not found');
+            }
+            splineApp = new Application(canvas);
+            await splineApp.load(dataSrc);
+            // default to object named "Object" if not present
+            try{
+                splineObj = splineApp.findObjectByName('Object') || splineApp.findObjectByName('object');
+            }catch(e){
+                splineObj = null;
+            }
+            splineLoaded = true;
+            console.log('[wp-spline] runtime loaded', { splineObj });
+        }catch(e){
+            console.warn('Spline runtime failed to load, falling back to iframe', e);
+            // fallback: set iframe src so scene still appears
+            if(iframe && dataSrc){
+                iframe.setAttribute('src', dataSrc);
+            }
+            splineLoaded = false;
         }
         if(observer){
             observer.disconnect();
@@ -70,14 +110,22 @@ function initSpline(container){
     // In Elementor editor preview, load immediately for live preview
     const isElementorPreview = !!(window.elementorFrontend);
     if(dataSrc && isElementorPreview){
-        loadIframe();
+        if(isSplineRuntime){
+            loadSpline();
+        } else {
+            loadIframe();
+        }
     } else if(dataSrc){
         // Observe container visibility and load when near viewport
         try{
             observer = new IntersectionObserver(entries=>{
                 entries.forEach(entry=>{
                     if(entry.isIntersecting || entry.intersectionRatio > 0){
-                        loadIframe();
+                        if(isSplineRuntime){
+                            loadSpline();
+                        } else {
+                            loadIframe();
+                        }
                     }
                 });
             }, { root: null, rootMargin: '400px' });
@@ -144,11 +192,37 @@ function initSpline(container){
         const axis = state.rotation_axis || 'Y';
         const zIdx = Number.isFinite(state.z_index) ? Math.round(state.z_index) : null;
 
-        // apply transform with chosen rotation axis
-        const rotateCSS = 'rotate' + axis + '(' + rotation + 'deg)';
+        if(isSplineRuntime && splineLoaded && splineObj){
+            // Map rotation degrees to radians for the spline object
+            const rad = rotation * (Math.PI/180);
+            const axisLower = String(axis || 'Y').toLowerCase();
+            // apply position/scale/rotation to the 3D object
+            try{
+                if(typeof splineObj.position?.set === 'function'){
+                    splineObj.position.set(x, y, splineObj.position.z || 0);
+                } else {
+                    splineObj.position.x = x;
+                    splineObj.position.y = y;
+                }
+                if(typeof splineObj.scale?.set === 'function'){
+                    splineObj.scale.set(scale, scale, scale);
+                } else {
+                    splineObj.scale.x = scale; splineObj.scale.y = scale; splineObj.scale.z = scale;
+                }
+                if(axisLower === 'x') splineObj.rotation.x = rad;
+                if(axisLower === 'y') splineObj.rotation.y = rad;
+                if(axisLower === 'z') splineObj.rotation.z = rad;
+                if(zIdx !== null) splineObj.zIndex = zIdx;
+            }catch(e){
+                // silent fail
+            }
+            return;
+        }
 
-        iframe.style.transform = 'translate3d(' + x + 'px, ' + y + 'px, 0) scale(' + scale + ') ' + rotateCSS;
-        if(zIdx !== null) iframe.style.zIndex = zIdx;
+        // apply transform with chosen rotation axis for iframe fallback
+        const rotateCSS = 'rotate' + axis + '(' + rotation + 'deg)';
+        if(iframe) iframe.style.transform = 'translate3d(' + x + 'px, ' + y + 'px, 0) scale(' + scale + ') ' + rotateCSS;
+        if(zIdx !== null && iframe) iframe.style.zIndex = zIdx;
     }
 
     function update(){
@@ -192,6 +266,10 @@ function initSpline(container){
             window.removeEventListener('scroll', onScroll, { passive: true });
             window.removeEventListener('resize', onResize);
             clearTimeout(resizeTimer);
+            if(splineApp && typeof splineApp.destroy === 'function'){
+                try{ splineApp.destroy(); }catch(e){}
+            }
+            splineApp = null; splineObj = null; splineLoaded = false;
             container._splineInstance = null;
         }
     };

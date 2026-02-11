@@ -17,22 +17,7 @@ class ZA_Spline_Elementor_Widget extends \Elementor\Widget_Base {
         $this->add_control('spline_url', [
             'label' => 'Spline Embed URL',
             'type' => \Elementor\Controls_Manager::TEXT,
-        ]);
-
-        $this->add_control('spline_source', [
-            'label' => 'Source Type',
-            'type' => \Elementor\Controls_Manager::SELECT,
-            'options' => [
-                'url' => 'Embed URL',
-                'upload' => 'Upload (self-hosted)'
-            ],
-            'default' => 'url'
-        ]);
-
-        $this->add_control('spline_file', [
-            'label' => 'Upload Spline File',
-            'type' => \Elementor\Controls_Manager::MEDIA,
-            'description' => 'Upload an HTML export or hosted file to use for the iframe (falls back to Embed URL).',
+            'description' => 'Paste the Spline scene URL (for example: https://prod.spline.design/Pa-B0slUrd5zRAEY/scene.splinecode).',
         ]);
 
         $repeater = new \Elementor\Repeater();
@@ -180,20 +165,9 @@ $repeater->add_control('z_index', [
 
         $timeline = wp_json_encode($clean);
 
-        // Determine iframe src: prefer uploaded file when selected
+        // Determine source URL (we only support direct Spline scene URLs now)
         $iframe_src = '';
-        $source = $settings['spline_source'] ?? 'url';
-        if ($source === 'upload' && !empty($settings['spline_file'])) {
-            $media = $settings['spline_file'];
-            if (is_array($media) && !empty($media['url'])) {
-                $iframe_src = esc_url_raw($media['url']);
-            } else {
-                // sometimes Elementor stores media as ID or string
-                $iframe_src = esc_url_raw($media);
-            }
-        }
-
-        if (empty($iframe_src) && !empty($settings['spline_url'])) {
+        if (!empty($settings['spline_url'])) {
             $iframe_src = esc_url_raw($settings['spline_url']);
         }
 ?>
@@ -201,12 +175,10 @@ $repeater->add_control('z_index', [
      data-timeline='<?php echo esc_attr($timeline); ?>'
      data-src='<?php echo esc_attr($iframe_src); ?>'>
 
-    <iframe class="wp-spline-frame"
-        src="about:blank"
-        width="100%"
-        height="600"
-        frameborder="0"
-        loading="lazy"></iframe>
+    <canvas class="wp-spline-canvas wp-spline-frame"
+        data-canvas-for="spline"
+        width="800"
+        height="600"></canvas>
 
     <noscript>
         <iframe class="wp-spline-frame" src="<?php echo esc_url($iframe_src); ?>" width="100%" height="600" frameborder="0"></iframe>
